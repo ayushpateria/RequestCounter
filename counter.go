@@ -7,8 +7,8 @@ type counter struct {
 }
 
 // inc increments the value of counter of 1. To make sure
-// multiple threads are operate on the counter at the same
-// time, atomic increments are used.
+// multiple threads are able to operate on the counter at the
+// same time, atomic increments are used.
 func (c *counter) inc() {
 	atomic.AddUint64(&c.val, 1)
 }
