@@ -6,27 +6,12 @@ import (
 	"sync"
 )
 
-type qps struct {
-	currCount uint64
-	countLastSec uint64
-	ts int64
-	lock sync.RWMutex
-}
-
 type counter struct {
 	val	uint64
-	// byTs is a mapping from timestamp to count, it
-	// stores the count of the counter at the end of that
-	// second, and is used to calculate qps. We only store
-	// latest three timestamps in byTs, as only last two
-	// seconds are required to calculate qps.
-	q qps
+	q *qps
 }
 
-// inc increments the value of counter by 1. It also
-// stores the current count to `byTs` for qps calculation
-// To make sure multiple threads are able to operate on the
-// counter at the same time, atomic increments are used.
+// inc increments the value of counter by 1.
 func (c *counter) inc() {
 	atomic.AddUint64(&c.val, 1)
 	// Update qps
@@ -41,21 +26,37 @@ func (c *counter) value() uint64 {
 
 // qps returns the number of requests served in the last second.
 func (c *counter) qps() uint64 {
-	return c.q.countLastSec
+	return c.q.getQps()
 }
 
 func newCounter() *counter {
-	return &counter{q: qps{}}
+	return &counter{q: &qps{}}
 }
 
-func (q qps) update() {
+
+type qps struct {
+	currCount uint64
+	countLastSec uint64
+	ts int64
+	lock sync.RWMutex
+}
+
+func (q *qps) update() {
+	q.lock.Lock()
+	defer q.lock.Unlock()
 	ts := time.Now().Unix()
-	if atomic.LoadInt64(&c.q.ts) == ts {
-		atomic.AddUint64(&c.q.currCount, 1)
+	if q.ts == ts {
+		q.currCount += 1
 	} else {
-		atomic.StoreInt64(&c.q.ts, ts)
-		currCount := atomic.LoadUint64(&c.q.currCount)
-		atomic.StoreUint64(&c.q.countLastSec, currCount)
-		atomic.StoreUint64(&c.q.currCount, 0)
+		q.ts = ts
+		currCount := q.currCount
+		q.countLastSec = currCount
+		q.currCount = 0
 	}
+}
+
+func (q *qps) getQps() uint64 {
+	q.lock.RLock()
+	defer q.lock.RUnlock()
+	return q.countLastSec
 }
