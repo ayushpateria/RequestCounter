@@ -3,12 +3,14 @@ package main
 import (
 	"sync/atomic"
 	"time"
+	"sync"
 )
 
 type qps struct {
 	currCount uint64
 	countLastSec uint64
 	ts int64
+	lock sync.RWMutex
 }
 
 type counter struct {
@@ -27,16 +29,8 @@ type counter struct {
 // counter at the same time, atomic increments are used.
 func (c *counter) inc() {
 	atomic.AddUint64(&c.val, 1)
-	// Storing latest three seconds in byTs for qps calculation.
-	ts := time.Now().Unix()
-	if atomic.LoadInt64(&c.q.ts) == ts {
-		atomic.AddUint64(&c.q.currCount, 1)
-	} else {
-		atomic.StoreInt64(&c.q.ts, ts)
-		currCount := atomic.LoadUint64(&c.q.currCount)
-		atomic.StoreUint64(&c.q.countLastSec, currCount)
-		atomic.StoreUint64(&c.q.currCount, 0)
-	}
+	// Update qps
+	c.q.update()
 }
 
 // value returns the current value of the counter, it does
@@ -52,4 +46,16 @@ func (c *counter) qps() uint64 {
 
 func newCounter() *counter {
 	return &counter{q: qps{}}
+}
+
+func (q qps) update() {
+	ts := time.Now().Unix()
+	if atomic.LoadInt64(&c.q.ts) == ts {
+		atomic.AddUint64(&c.q.currCount, 1)
+	} else {
+		atomic.StoreInt64(&c.q.ts, ts)
+		currCount := atomic.LoadUint64(&c.q.currCount)
+		atomic.StoreUint64(&c.q.countLastSec, currCount)
+		atomic.StoreUint64(&c.q.currCount, 0)
+	}
 }
