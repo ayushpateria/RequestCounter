@@ -22,14 +22,20 @@ func home(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Hello"))
 }
 
-func reportStats(w http.ResponseWriter, r *http.Request) {
+func reportCount(w http.ResponseWriter, r *http.Request) {
 	resp := strconv.FormatUint(c.value(), 10)
+	w.Write([]byte(resp))
+}
+
+func reportQps(w http.ResponseWriter, r *http.Request) {
+	resp := strconv.FormatUint(c.qps(), 10)
 	w.Write([]byte(resp))
 }
 
 func main() {
   c = newCounter()
-  http.HandleFunc("/count", reportStats)
+	http.HandleFunc("/count", reportCount)
+	http.HandleFunc("/qps", reportQps)
   http.HandleFunc("/", withCounter(home))
   if err := http.ListenAndServe(":8080", nil); err != nil {
     panic(err)
